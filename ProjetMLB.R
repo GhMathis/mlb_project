@@ -13,6 +13,7 @@ library(gbm)
 library(kernlab)
 library(keras)
 library(tensorflow)
+library(recipes)
 # Tibet2<-import_cmdc_data(fname='qinghai')
 # 
 # worldclim <-worldclim_global(var = "bio", res = 2.5, path="worldclim")
@@ -24,23 +25,29 @@ library(tensorflow)
 
 
 
-Tibet<-read_excel("Projet_Machine_Learning_Data.xlsx")
-Tibet<-as.data.frame(Tibet)
-Tibet2<-matrix(0,nrow=length(Tibet[,1]),ncol=length(Tibet[1,]),dimnames=list(1:length(Tibet[,1]),c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec","Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt","Sand","Clay","Aspect","DEM","Slope","pH","SOM","SR")))
-Tibet2<-as.data.frame(Tibet2)
+ Tibet<-read_excel("Projet_Machine_Learning_Data.xlsx")
+# Tibet<-as.data.frame(Tibet)
+# Tibet2<-matrix(0,nrow=length(Tibet[,1]),ncol=length(Tibet[1,]),dimnames=list(1:length(Tibet[,1]),c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec","Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt","Sand","Clay","Aspect","DEM","Slope","pH","SOM","SR")))
+# Tibet2<-as.data.frame(Tibet2)
+# 
+# for (i in 1:length(Tibet2[,1])){
+#   Tibet2[i,]<-Tibet[i,]
+# }
+# Tibet<-Tibet2
+# Tibet<-Tibet[,-1]
 
-for (i in 1:length(Tibet2[,1])){
-  Tibet2[i,]<-Tibet[i,]
-}
-Tibet<-Tibet2
+noms_data <- c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec","Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt","Sand","Clay","Aspect","DEM","Slope","pH","SOM","SR")
+colnames(Tibet) <- noms_data
 Tibet<-Tibet[,-1]
 
 ############################## Boucle ###############################
 
-#SR=Nombre d'espèces identifiées par m2
+#SR=Nombre d'espèces identifiées par m2, variable réponse.
 
 #Séparation en un jeu de données d'apprentissage et un jeu de données de validation
-Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")))
+
+nom_methods <- c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")
+Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,nom_methods))
 Results<-as.data.frame(Results)
 
 ######################## Validation non croisée de Monte-Carlo
@@ -272,26 +279,3 @@ pred.GB<-predict(Gradboost,newdata=Tibetvalid)
 ########################## Réseaux de neuronnes
 
 ####### Comparaison de méthodes avec caret
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
