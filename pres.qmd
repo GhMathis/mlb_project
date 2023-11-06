@@ -21,6 +21,7 @@ summary(data)
 library(ggpubr)
 library(GGally)
 library(corrplot)
+source("functions.R")
 
 
 
@@ -30,16 +31,8 @@ library(corrplot)
 
 ```
 
-You can add options to executable code like this
+!! Ne pas oublier que le RMSE suppose la normalité des erreurs --\> faire représentations graph distributions pour adapter la méthode de sélection des modèles ?
 
 ```{r}
-#| echo: false
-#| cache=TRUE
 
-
-
-
-2 * 2
 ```
-
-The `echo: false` option disables the printing of code (only output is displayed).

@@ -46,7 +46,7 @@ Tibet<-Tibet[,-1]
 
 #Séparation en un jeu de données d'apprentissage et un jeu de données de validation
 
-nom_methods <- c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")
+nom_methods <- c("RMSERandomF","Importances","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")
 Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,nom_methods))
 Results<-as.data.frame(Results)
 
