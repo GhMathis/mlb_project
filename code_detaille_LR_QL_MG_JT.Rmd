@@ -9,23 +9,326 @@ output: html_document
 knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
-# Introduction
+```{r}
+library(readxl)
+library(tidyverse)
+library(glmnet)
+library(randomForest)
+library(caret)
+library(doParallel)
+library(gbm)
+library(kernlab)
+library(e1071)
+library(ggforce)
+library(keras)
+library(tensorflow)
 
-## Contexte et problématique
 
-
-## Initialisations
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+# Importation des données
+```{r data.import}
+Tibet = read.table("data.txt",header=TRUE,sep="\t",dec = ",")
+Tibet<-as.data.frame(Tibet)
+names(Tibet) = c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec",
+                 "Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt",
+                 "Sand","Clay","Aspect","DEM","Slope","pH","SOM","SR")
+Tibet<-Tibet[,-1]
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Création des fonction de chaque modèle
+```{r Foret Alea}
+ForetAlea <- function(Tibetapp,Tibetvalid,Results){
+  
+  #selections des variables (du nb de variables ?) utiliser pour le modele = mtry ?
+  grille.mtry<-data.frame(mtry=seq(1,length(Tibetapp[1,]),by=1)) #?
+  ctrl<-trainControl(method="oob")# out of bag car validation non croisée
+  sel.mtry<-caret::train(SR~.,data=Tibetapp, method="rf", trControl=ctrl, tuneGrid=grille.mtry) 
+  
+  # entrainement du model sur le jeu d'entrainement : Tibetapp
+  ForeTibet<-randomForest(SR~.,data=Tibetapp,mtry=sel.mtry$bestTune[1,1],xtest=Tibetvalid[,-21],ytest=Tibetvalid[,21],ntree=250,keep.forest=TRUE)
+  
+  # Prediction sur le jeu de validation : Tibetvalid
+  prev<-predict(ForeTibet,newdata=Tibetvalid[,1:20])
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERandomF[i]<-sqrt(mean((Tibetvalid[,21]-prev)^2))
+  
+  # Stockages des variables utilisées pour le modele
+  Results$variablesRandomF[i]<-paste(list(names(ForeTibet$importance[1:sel.mtry$bestTune[1,1],1])),sep=" ") 
+  
+  return(Results)
+}
+
+#Regression sous contraintes
+```
+
+
+```{r Lasso}
+Lasso <- function(Tibetapp, Tibetvalid, Results){
+  
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  lasso<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],type.measure="mse")
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.lasso<-predict(lasso,newx=as.matrix(Tibetvalid[,1:20]))
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERegLasso[i]<-sqrt(mean((Tibetvalid[,21]-prev.lasso)^2))
+  
+  #Stockage des coefficient associer à chaque variable ?
+  
+  return(Results)
+}
+```
+
+
+```{r Ridge}
+Ridge <- function(Tibetapp, Tibetvalid, Results){
+  
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  ridge<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,type.measure="mse")
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.ridge<-predict(ridge,newx=as.matrix(Tibetvalid[,1:20]))
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERegRidge[i]<-sqrt(mean((Tibetvalid[,21]-prev.ridge)^2))
+  
+  #Stockage des coefficient associer à chaque variable ?
+  
+  return(Results)
+}
+```
+
+
+```{r Elast}
+Elasticnet <- function(Tibetapp, Tibetvalid, Results){
+  
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  elasticnet<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0.5,type.measure="mse")
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.elasticnet<-predict(elasticnet,newx=as.matrix(Tibetvalid[,1:20]))
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERegelasticnet[i]<-sqrt(mean((Tibetvalid[,21]-prev.elasticnet)^2))
+  
+  #Stockage des coefficient associer à chaque variable ?
+  
+  return(Results)
+}
+```
+
+
+```{r GradB}
+GradientBoosting <- function(Tibetapp, Tibetvalid, Results){
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  Gradboost<-gbm(SR~.,data=Tibetapp,distribution = 'gaussian',shrinkage=0.01,n.trees=3000) 
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.GB<-predict(Gradboost,newdata=Tibetvalid[,1:20])
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSEGB[i]<-sqrt(mean((Tibetvalid[,21]-prev.GB)^2))
+  
+  #Stockage des coefficient associer à chaque variable ?
+  
+  return(Results)
+}
+```
+
+
+```{r SVM}
+svm.regression = function(Tibetapp, Tibetvalid, Results){
+  
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  Modsvm = svm(SR~.,data=Tibetapp)
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.svm<-predict(Modsvm,newdata=Tibetvalid[,1:20])
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSESVM[i]<-sqrt(mean((Tibetvalid[,21]-prev.svm)^2))
+  
+  return(Results)
+}
+```
+# Tableau des output
+```{r}
+Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")))
+Results<-as.data.frame(Results)
+
+```
+
+# Boucles pour chaque algoritme
+
+```{r Loop.ForetAlea}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Rajouter transformation des variables?Regression de poisson?package keras?
+  
+  #Foret Aléatoire 
+  Results <- ForetAlea(Tibetapp,Tibetvalid,Results)
+
+}
+stopCluster(cl)
+```
+
+```{r Loop.Lasso}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Rajouter transformation des variables?Regression de poisson?package keras?
+  
+  # Lasso 
+  Results <- Lasso(Tibetapp,Tibetvalid,Results)
+  
+}
+stopCluster(cl)
+```
+
+```{r Loop.Ridge}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Rajouter transformation des variables?Regression de poisson?package keras?
+  
+  # Ridge 
+  Results <- Ridge(Tibetapp,Tibetvalid,Results)
+
+}
+stopCluster(cl)
+```
+
+```{r Loop.Elast}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Rajouter transformation des variables?Regression de poisson?package keras?
+  
+  # Elasticnet 
+  Results <- Elasticnet(Tibetapp,Tibetvalid,Results)
+
+}
+stopCluster(cl)
+```
+
+
+```{r Loop.GradB}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Rajouter transformation des variables?Regression de poisson?package keras?
+  
+  #Gradient boosting 
+  Results <- GradientBoosting(Tibetapp,Tibetvalid,Results)
+}
+stopCluster(cl)
+```
+
+```{r Loop.SVM}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Support vector machine (mode regression) 
+  Results <- svm.regression(Tibetapp,Tibetvalid,Results)
+}
+stopCluster(cl)
+```
+
+
+# Resultats
+
+```{r RMSE.plot}
+Results_long = Results%>%
+  select(starts_with("RMSE"))%>%
+  pivot_longer(everything())
+
+Results_long$name = as.factor(Results_long$name)
+levels(Results_long$name) = c("Grad.boost" ,"Random.F", "Elsast", "Lasso", "Ridge", "ResNeu", "SVM")
+recap = Results_long%>%
+  group_by(name)%>%
+  summarise(mean.rmse = mean(value),
+            sd.rmse = sd(value))
+ggplot()+
+  geom_sina(data=Results_long, aes(name, value), alpha = 0.2,shape=19, cex = 2,
+            method = "density")+
+  geom_point(data = recap, aes(name, mean.rmse), cex =2, col = "orange")+
+  geom_errorbar(data = recap, 
+                aes(x= name, ymin=mean.rmse-sd.rmse, ymax=mean.rmse+sd.rmse),
+                cex =1.2, width=.1, position = position_dodge(0.5), col = "orange")+
+  labs(y= "Erreur moyenne",x ="Modèles")+
+  theme_bw()+
+  theme(line = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        axis.ticks =  element_line(colour = "black"),
+        axis.text.x = element_text(colour = "black", size=20),
+        axis.text.y = element_text(colour = "black", size=20),
+        legend.title = element_text(colour = "black", size=20),
+        legend.title.align=0.5,
+        legend.text = element_text(colour = "black", size=18),
+        axis.title=element_text(size=28),
+        strip.background = element_rect(fill="white"))
+
+```
+
+
+
+
