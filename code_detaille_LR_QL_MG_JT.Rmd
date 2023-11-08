@@ -27,8 +27,13 @@ library(tensorflow)
 ```
 
 # Importation des données
+
+On commence par importer les données. On nomme les variable du data frame et on lui retire la première colonne qui contient les indices des lignes.
 ```{r data.import}
+
 Tibet = read.table("data.txt",header=TRUE,sep="\t",dec = ",")
+
+
 Tibet<-as.data.frame(Tibet)
 names(Tibet) = c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec",
                  "Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt",
@@ -36,11 +41,21 @@ names(Tibet) = c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec",
 Tibet<-Tibet[,-1]
 ```
 
-# Création des fonction de chaque modèle
+# Création des fonction pour chaque modèle
+
+Les fonctions permettent de clarifier les chunks itératifs.
+
+## Forêt aléatoire
+
+On utilise ici la fonction "randomForest" du package randomForest (version 4.7 - 1.1) qui permet de calculer les prédictions et l'importance des variables avec la forêt aléatoire. 
+Avec comme arguments :
+* mtry = le nombre de variable sélectionnées pour construire chaque arbre; 
+* ntree = le nombre d'arbre généré par l'algorithme
+
 ```{r Foret Alea}
 ForetAlea <- function(Tibetapp,Tibetvalid,Results){
   
-  #selections des variables (du nb de variables ?) utiliser pour le modele = mtry ?
+  #selections du nb de variables utiliser pour le modele = mtry ?
   grille.mtry<-data.frame(mtry=seq(1,length(Tibetapp[1,]),by=1)) #?
   ctrl<-trainControl(method="oob")# out of bag car validation non croisée
   sel.mtry<-caret::train(SR~.,data=Tibetapp, method="rf", trControl=ctrl, tuneGrid=grille.mtry) 
@@ -63,6 +78,12 @@ ForetAlea <- function(Tibetapp,Tibetvalid,Results){
 #Regression sous contraintes
 ```
 
+## Régression avec pénalité Lasso
+
+On utilise ici la fonction "cv.glmet" du package glmnet (version 4.1 - 8). Les arguments sont :
+* Une matrice des variables explicatives
+* Un vecteur de la variable réponse
+* type.mesure = méthode utilisée pour la validation croisée.
 
 ```{r Lasso}
 Lasso <- function(Tibetapp, Tibetvalid, Results){
@@ -83,6 +104,10 @@ Lasso <- function(Tibetapp, Tibetvalid, Results){
 ```
 
 
+## Régression Ridge
+
+
+On utilise ici 
 ```{r Ridge}
 Ridge <- function(Tibetapp, Tibetvalid, Results){
   
@@ -101,6 +126,7 @@ Ridge <- function(Tibetapp, Tibetvalid, Results){
 }
 ```
 
+## Régression Elasticnet
 
 ```{r Elast}
 Elasticnet <- function(Tibetapp, Tibetvalid, Results){
@@ -120,6 +146,7 @@ Elasticnet <- function(Tibetapp, Tibetvalid, Results){
 }
 ```
 
+## Gradient boosting
 
 ```{r GradB}
 GradientBoosting <- function(Tibetapp, Tibetvalid, Results){
@@ -138,6 +165,7 @@ GradientBoosting <- function(Tibetapp, Tibetvalid, Results){
 }
 ```
 
+## Régession SVM
 
 ```{r SVM}
 svm.regression = function(Tibetapp, Tibetvalid, Results){
@@ -154,14 +182,21 @@ svm.regression = function(Tibetapp, Tibetvalid, Results){
   return(Results)
 }
 ```
-# Tableau des output
+
+
+# Lancement des modèles et récupération des résultats
+
+## Création du tableau des sorties
+
 ```{r}
 Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")))
 Results<-as.data.frame(Results)
 
 ```
 
-# Boucles pour chaque algoritme
+## Itérations des algorithmes et stockage des résultats
+
+### Forêt aléatoire
 
 ```{r Loop.ForetAlea}
 set.seed(100010)
@@ -185,6 +220,8 @@ for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifa
 stopCluster(cl)
 ```
 
+### Régression Lasso
+
 ```{r Loop.Lasso}
 set.seed(100010)
 
@@ -206,6 +243,8 @@ for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifa
 }
 stopCluster(cl)
 ```
+
+### Régression Ridge
 
 ```{r Loop.Ridge}
 set.seed(100010)
@@ -229,6 +268,8 @@ for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifa
 stopCluster(cl)
 ```
 
+### Régression Elasticinet
+
 ```{r Loop.Elast}
 set.seed(100010)
 
@@ -251,6 +292,7 @@ for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifa
 stopCluster(cl)
 ```
 
+### Gradient boosting
 
 ```{r Loop.GradB}
 set.seed(100010)
@@ -273,6 +315,8 @@ for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifa
 stopCluster(cl)
 ```
 
+### SVM
+
 ```{r Loop.SVM}
 set.seed(100010)
 
@@ -293,7 +337,7 @@ stopCluster(cl)
 ```
 
 
-# Resultats
+# Représentations graphiques, comparaison des modèles 
 
 ```{r RMSE.plot}
 Results_long = Results%>%
