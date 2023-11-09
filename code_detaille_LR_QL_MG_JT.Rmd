@@ -156,7 +156,7 @@ svm.regression = function(Tibetapp, Tibetvalid, Results){
 ```
 # Tableau des output
 ```{r}
-Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")))
+Results<-matrix(0,ncol=8,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","RMSERegLasso","RMSERegRidge","RMSERegelasticnet","RMSEGB","RMSESVM","RMSEResNeu","BestMod")))
 Results<-as.data.frame(Results)
 
 ```
@@ -168,19 +168,24 @@ set.seed(100010)
 
 cl <- detectCores() %>% -1 %>% makeCluster
 registerDoParallel(cl)
-for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+if(file.exists("RMSERandomF.txt")){
+  Resultforet = read.table("RMSERandomF.txt")
+  Results$RMSERandomF = Resultforet$x
+}else{
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    #Foret Aléatoire 
+    Results <- ForetAlea(Tibetapp,Tibetvalid,Results)
   
-  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
-  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
-  #Séparation en un jeu de données en un d'apprentissage et un de validation
-  Tibetapp<-Tibet[aleat,]
-  Tibetvalid<-Tibet[-aleat,]
-  ##############################################################################
-  #Rajouter transformation des variables?Regression de poisson?package keras?
-  
-  #Foret Aléatoire 
-  Results <- ForetAlea(Tibetapp,Tibetvalid,Results)
-
+  }
 }
 stopCluster(cl)
 ```
@@ -190,63 +195,56 @@ set.seed(100010)
 
 cl <- detectCores() %>% -1 %>% makeCluster
 registerDoParallel(cl)
-for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+if(file.exists("Resultreg.txt")){
+  Resultreg = read.table("Resultreg.txt")
+  Results$RMSERegLasso = Resultreg$RMSERegLasso
+  Results$RMSERegRidge = Resultreg$RMSERegRidge
+  Results$RMSERegelasticnet = Resultreg$RMSERegelasticnet
+}else{
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    # Lasso 
+    Results <- Lasso(Tibetapp,Tibetvalid,Results)
+    
+  }
   
-  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
-  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
-  #Séparation en un jeu de données en un d'apprentissage et un de validation
-  Tibetapp<-Tibet[aleat,]
-  Tibetvalid<-Tibet[-aleat,]
-  ##############################################################################
-  #Rajouter transformation des variables?Regression de poisson?package keras?
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    # Ridge 
+    Results <- Ridge(Tibetapp,Tibetvalid,Results)
   
-  # Lasso 
-  Results <- Lasso(Tibetapp,Tibetvalid,Results)
+  }
   
-}
-stopCluster(cl)
-```
-
-```{r Loop.Ridge}
-set.seed(100010)
-
-cl <- detectCores() %>% -1 %>% makeCluster
-registerDoParallel(cl)
-for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    # Elasticnet 
+    Results <- Elasticnet(Tibetapp,Tibetvalid,Results)
   
-  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
-  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
-  #Séparation en un jeu de données en un d'apprentissage et un de validation
-  Tibetapp<-Tibet[aleat,]
-  Tibetvalid<-Tibet[-aleat,]
-  ##############################################################################
-  #Rajouter transformation des variables?Regression de poisson?package keras?
-  
-  # Ridge 
-  Results <- Ridge(Tibetapp,Tibetvalid,Results)
-
-}
-stopCluster(cl)
-```
-
-```{r Loop.Elast}
-set.seed(100010)
-
-cl <- detectCores() %>% -1 %>% makeCluster
-registerDoParallel(cl)
-for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
-  
-  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
-  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
-  #Séparation en un jeu de données en un d'apprentissage et un de validation
-  Tibetapp<-Tibet[aleat,]
-  Tibetvalid<-Tibet[-aleat,]
-  ##############################################################################
-  #Rajouter transformation des variables?Regression de poisson?package keras?
-  
-  # Elasticnet 
-  Results <- Elasticnet(Tibetapp,Tibetvalid,Results)
-
+  }
 }
 stopCluster(cl)
 ```
