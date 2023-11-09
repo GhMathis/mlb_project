@@ -1,3 +1,3 @@
 # mlb_project
 
-![YAAAAAYYY]{Final_plot.txt}
+![YAAAAAYYY]{Final_plot.png}
