@@ -56,21 +56,20 @@ Avec comme arguments :
 ForetAlea <- function(Tibetapp,Tibetvalid,Results){
   
   #selections du nb de variables utiliser pour le modele = mtry ?
-  grille.mtry<-data.frame(mtry=seq(1,length(Tibetapp[1,]),by=1)) #?
-  ctrl<-trainControl(method="oob")# out of bag car validation non croisée
-  sel.mtry<-caret::train(SR~.,data=Tibetapp, method="rf", trControl=ctrl, tuneGrid=grille.mtry) 
+
   
   # entrainement du model sur le jeu d'entrainement : Tibetapp
-  ForeTibet<-randomForest(SR~.,data=Tibetapp,mtry=sel.mtry$bestTune[1,1],xtest=Tibetvalid[,-21],ytest=Tibetvalid[,21],ntree=250,keep.forest=TRUE)
+  
+  ForeTibet<-randomForest(SR~.,data=Tibetapp,mtry=(ncol(Tibetapp)-1)/3,ntree=250,keep.forest=TRUE)
   
   # Prediction sur le jeu de validation : Tibetvalid
+  
   prev<-predict(ForeTibet,newdata=Tibetvalid[,1:20])
   
   # Calcul du RMSE pour évaluer la qualité du modele
   Results$RMSERandomF[i]<-sqrt(mean((Tibetvalid[,21]-prev)^2))
   
   # Stockages des variables utilisées pour le modele
-  Results$variablesRandomF[i]<-paste(list(names(ForeTibet$importance[1:sel.mtry$bestTune[1,1],1])),sep=" ") 
   
   return(Results)
 }
@@ -337,7 +336,21 @@ stopCluster(cl)
 ```
 
 
+<<<<<<< HEAD
 # Représentations graphiques, comparaison des modèles 
+=======
+```{r}
+Rsq <- function(RMSE){
+  SSE <- length(Tibetvalid[,21])*RMSE^2
+  SST = sum((Tibetvalid[,21]-mean(Tibetvalid[,21]))^2)
+  Rsq = 1 - SSE/SST
+  return(Rsq)
+}
+```
+
+
+# Resultats
+>>>>>>> 97be236b031aa38590fffabf6bc4332df22643ab
 
 ```{r RMSE.plot}
 Results_long = Results%>%
