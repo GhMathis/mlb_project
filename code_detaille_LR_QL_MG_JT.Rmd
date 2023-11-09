@@ -22,9 +22,9 @@ library(gbm)
 library(kernlab)
 library(e1071)
 library(ggforce)
-# library(keras)
-# library(tensorflow)
-
+#library(keras)
+#library(tensorflow)
+library(neuralnet)
 
 ```
 
@@ -39,6 +39,7 @@ Tibet<-Tibet[,-1]
 ```
 
 # Création des fonction de chaque modèle
+
 ```{r}
 GLM <- function(Tibetapp, Tibetvalid, Results){
   
@@ -49,13 +50,11 @@ GLM <- function(Tibetapp, Tibetvalid, Results){
   prev.glm<-predict(modelglm,newdata=as.data.frame(Tibetvalid[,1:20]))
   
   # Calcul du RMSE pour évaluer la qualité du modele
-  Results$RMSEGLM<-sqrt(mean((Tibetvalid[,21]-prev.glm)^2))
+  Results$RMSEGLM[i] <- sqrt(mean((Tibetvalid[,21]-prev.glm)^2))
   
   return(Results)
 }
 ```
-
-
 
 ```{r Foret Alea}
 ForetAlea <- function(Tibetapp,Tibetvalid,Results){
@@ -74,9 +73,6 @@ ForetAlea <- function(Tibetapp,Tibetvalid,Results){
   # Calcul du RMSE pour évaluer la qualité du modele
   Results$RMSERandomF[i]<-sqrt(mean((Tibetvalid[,21]-prev)^2))
   
-  # Stockages des variables utilisées pour le modele
-  Results$variablesRandomF[i]<-paste(list(names(ForeTibet$importance[1:sel.mtry$bestTune[1,1],1])),sep=" ") 
-  
   return(Results)
 }
 
@@ -87,16 +83,15 @@ ForetAlea <- function(Tibetapp,Tibetvalid,Results){
 ```{r Lasso}
 Lasso <- function(Tibetapp, Tibetvalid, Results){
   
-  # entrainement du modele sur le jeu d'entrainement : Tibetapp
-  lasso<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],type.measure="mse")
-  
-  # Prediction sur le jeu de validation : Tibetvalid 
+  #Regression pénalisée Lasso pour avoir une "fourchette" des lambda
+  lasso<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],family="gaussian",type.measure="mse")
+  #Regression pénalisée Lasso avec optimisation grâce à l'ensemble des lambdas sélectionnés 
+  lasso<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],family="gaussian",lambda=exp(c(lasso$lambda)))
+ # Prediction sur le jeu de validation : Tibetvalid 
   prev.lasso<-predict(lasso,newx=as.matrix(Tibetvalid[,1:20]))
-  
   # Calcul du RMSE pour évaluer la qualité du modele
   Results$RMSERegLasso[i]<-sqrt(mean((Tibetvalid[,21]-prev.lasso)^2))
   
-  #Stockage des coefficient associer à chaque variable ?
   
   return(Results)
 }
@@ -106,16 +101,14 @@ Lasso <- function(Tibetapp, Tibetvalid, Results){
 ```{r Ridge}
 Ridge <- function(Tibetapp, Tibetvalid, Results){
   
-  # entrainement du modele sur le jeu d'entrainement : Tibetapp
-  ridge<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,type.measure="mse")
-  
+  #Regression pénalisée Ridge pour avoir une "fourchette" des lambda
+  ridge<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,family="gaussian",type.measure="mse")
+  #Regression pénalisée Ridge avec optimisation grâce à un sous-ensemble des lambdas sélectionnés les plus faibles
+  ridge<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,family="gaussian",lambda=exp(seq(from=min(ridge$lambda),to=(min(ridge$lambda)+10),   by=0.1)))
   # Prediction sur le jeu de validation : Tibetvalid 
   prev.ridge<-predict(ridge,newx=as.matrix(Tibetvalid[,1:20]))
-  
   # Calcul du RMSE pour évaluer la qualité du modele
   Results$RMSERegRidge[i]<-sqrt(mean((Tibetvalid[,21]-prev.ridge)^2))
-  
-  #Stockage des coefficient associer à chaque variable ?
   
   return(Results)
 }
@@ -125,16 +118,14 @@ Ridge <- function(Tibetapp, Tibetvalid, Results){
 ```{r Elast}
 Elasticnet <- function(Tibetapp, Tibetvalid, Results){
   
-  # entrainement du modele sur le jeu d'entrainement : Tibetapp
-  elasticnet<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0.5,type.measure="mse")
-  
+  #Regression pénalisée elasticnet pour avoir une "fourchette" des lambda
+  elasticnet<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0.5,family="gaussian",type.measure="mse")
+  #Regression pénalisée elasticnet avec optimisation grâce à l'ensemble des lambdas sélectionnés
+  elasticnet<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,family="gaussian",lambda=exp(elasticnet$lambda))
   # Prediction sur le jeu de validation : Tibetvalid 
   prev.elasticnet<-predict(elasticnet,newx=as.matrix(Tibetvalid[,1:20]))
-  
   # Calcul du RMSE pour évaluer la qualité du modele
   Results$RMSERegelasticnet[i]<-sqrt(mean((Tibetvalid[,21]-prev.elasticnet)^2))
-  
-  #Stockage des coefficient associer à chaque variable ?
   
   return(Results)
 }
@@ -176,7 +167,8 @@ svm.regression = function(Tibetapp, Tibetvalid, Results){
 ```
 
 
-```{r}
+
+```{r ResNeu}
 
 ResNeu = function(Tibetapp, Tibetvalid, Results){
 
@@ -201,16 +193,20 @@ ResNeu = function(Tibetapp, Tibetvalid, Results){
   
   return(Results)
 }
+
 ```
 
 # Tableau des output
 ```{r}
+
 Results<-matrix(0,ncol=9,nrow=1000,dimnames=list(1:1000,c("RMSEGLM","RMSERandomF","RMSERegLasso","RMSERegRidge","RMSERegelasticnet","RMSEGB","RMSESVM","RMSEResNeu","BestMod")))
+
 Results<-as.data.frame(Results)
 
 ```
 
 # Boucles pour chaque algoritme
+
 ```{r Loop.GLM}
 set.seed(100010)
 
@@ -224,6 +220,7 @@ for (i in 1:1000){
   
   Results <- GLM(Tibetapp,Tibetvalid,Results)
 }
+
 stopCluster(cl)
 ```
 
@@ -362,6 +359,7 @@ for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifa
 stopCluster(cl)
 ```
 
+
 ```{r Loop.resN}
 set.seed(100010)
 
@@ -388,7 +386,7 @@ if(file.exists("ResNeuSeco.txt")){
 stopCluster(cl)
 ```
 
-```{r}
+```{r RMSE}
 Rsq <- function(RMSE){
   SSE <- length(Tibetvalid[,21])*RMSE^2
   SST = sum((Tibetvalid[,21]-mean(Tibetvalid[,21]))^2)
