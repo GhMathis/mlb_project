@@ -215,12 +215,10 @@ Results<-as.data.frame(Results)
 
 ```
 
-<<<<<<< HEAD
-## Itérations des algorithmes et stockage des résultats
 
-### Forêt aléatoire
-=======
 # Boucles pour chaque algoritme
+
+## GLM
 ```{r Loop.GLM}
 set.seed(100010)
 for (i in 1:1000){
@@ -234,7 +232,8 @@ for (i in 1:1000){
 
 ```
 
->>>>>>> 4fe6ca32707b869e4db0e6d1cb471fde96ee2018
+
+## Forêt aléatoire
 
 ```{r Loop.ForetAlea}
 set.seed(100010)
@@ -263,7 +262,7 @@ if(file.exists("RMSERandomF.txt")){
 stopCluster(cl)
 ```
 
-### Régression Lasso
+## Régressions Lasso,ridge et elasticenet
 
 ```{r Loop.Lasso}
 set.seed(100010)
