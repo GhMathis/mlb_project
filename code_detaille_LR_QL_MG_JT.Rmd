@@ -174,11 +174,8 @@ svm.regression = function(Tibetapp, Tibetvalid, Results){
 ```
 # Tableau des output
 ```{r}
-<<<<<<< HEAD
 Results<-matrix(0,ncol=9,nrow=1000,dimnames=list(1:1000,c("RMSEGLM","RMSERandomF","RMSERegLasso","RMSERegRidge","RMSERegelasticnet","RMSEGB","RMSESVM","RMSEResNeu","BestMod")))
-=======
-Results<-matrix(0,ncol=8,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","RMSERegLasso","RMSERegRidge","RMSERegelasticnet","RMSEGB","RMSESVM","RMSEResNeu","BestMod")))
->>>>>>> 89547719fe4fcce764beac781216c1c40e4d8fc2
+
 Results<-as.data.frame(Results)
 
 ```
