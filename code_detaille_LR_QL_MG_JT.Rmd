@@ -293,6 +293,16 @@ stopCluster(cl)
 ```
 
 
+```{r}
+Rsq <- function(RMSE){
+  SSE <- length(Tibetvalid[,21])*RMSE^2
+  SST = sum((Tibetvalid[,21]-mean(Tibetvalid[,21]))^2)
+  Rsq = 1 - SSE/SST
+  return(Rsq)
+}
+```
+
+
 # Resultats
 
 ```{r RMSE.plot}
