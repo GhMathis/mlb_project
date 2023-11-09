@@ -37,6 +37,24 @@ Tibet<-Tibet[,-1]
 ```
 
 # Création des fonction de chaque modèle
+```{r}
+GLM <- function(Tibetapp, Tibetvalid, Results){
+  
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  modelglm<-glm(SR~.,family = 'gaussian',data = Tibetapp)
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.glm<-predict(modelglm,newdata=as.data.frame(Tibetvalid[,1:20]))
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSEGLM<-sqrt(mean((Tibetvalid[,21]-prev.poisson)^2))
+  
+  return(Results)
+}
+```
+
+
+
 ```{r Foret Alea}
 ForetAlea <- function(Tibetapp,Tibetvalid,Results){
   
@@ -156,12 +174,25 @@ svm.regression = function(Tibetapp, Tibetvalid, Results){
 ```
 # Tableau des output
 ```{r}
-Results<-matrix(0,ncol=15,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","variablesRandomF","RMSERegLasso","variablesRegLasso","RMSERegRidge","variablesRegRidge","RMSERegelasticnet","variablesRegelasticnet","RMSEGB","variablesGB","RMSESVM","variablesSVM","RMSEResNeu","variablesResNeu","BestMod")))
+Results<-matrix(0,ncol=9,nrow=1000,dimnames=list(1:1000,c("RMSEGLM","RMSERandomF","RMSERegLasso","RMSERegRidge","RMSERegelasticnet","RMSEGB","RMSESVM","RMSEResNeu","BestMod")))
 Results<-as.data.frame(Results)
 
 ```
 
 # Boucles pour chaque algoritme
+```{r Loop.GLM}
+set.seed(100010)
+for (i in 1:1000){
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  
+  Results <- GLM(Tibetapp,Tibetvalid,Results)
+}
+
+```
+
 
 ```{r Loop.ForetAlea}
 set.seed(100010)
