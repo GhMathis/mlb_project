@@ -339,6 +339,38 @@ ggplot()+
 
 ```
 
+# Annexe
 
+Justification du choix de travailler avec une loi normale et non une loi de poisson
+
+```{r}
+# Génération des valeurs pour la distribution de Poisson
+lambda = mean(Tibet$SR)
+x <- 0:30  
+poisson_values <- dpois(x, lambda) 
+
+# Génération des valeurs pour la distribution normale
+norm_values <- dnorm(x,mean(Tibet$SR),sd(Tibet$SR))
+
+# Création du graphique
+par(mfrow = c(1,3))
+
+plot(x, poisson_values, type = "h", lwd = 2, col = "blue",
+     xlab = "Richesse specifique", ylab = "Probabilité",
+     main = "Distribution de la loi de Poisson")
+
+plot(x, norm_values, type = "h", lwd = 2, col = "blue",
+     xlab = "Richesse specifique", ylab = "Probabilité",
+     main = "Distribution de la loi normale")
+
+hist(Tibet$SR,xlab = "Richesse specifique",main = "Distribution des données")
+```
+
+QQ plot des données de richesse spécifique
+
+```{r}
+qqnorm(Tibet$SR, pch= 16, col = 'blue',xlab='')
+qqline(Tibet$SR, col= 'red')
+```
 
 
