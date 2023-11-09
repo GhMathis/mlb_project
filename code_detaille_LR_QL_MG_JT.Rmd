@@ -1,0 +1,424 @@
+---
+title: "Prédiction de la richesse spécifique tibétaine"
+author: "Quentin Lamboley, Jeanne Thill, Mathis Gueno & Lucien Ricome"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(glmnet)
+library(randomForest)
+library(caret)
+library(doParallel)
+library(gbm)
+library(kernlab)
+library(e1071)
+library(ggforce)
+library(keras)
+library(tensorflow)
+library(neuralnet)
+
+```
+
+# Importation des données
+```{r data.import}
+Tibet = read.table("data.txt",header=TRUE,sep="\t",dec = ",")
+Tibet<-as.data.frame(Tibet)
+names(Tibet) = c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec",
+                 "Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt",
+                 "Sand","Clay","Aspect","DEM","Slope","pH","SOM","SR")
+Tibet<-Tibet[,-1]
+```
+
+# Création des fonction de chaque modèle
+```{r Foret Alea}
+ForetAlea <- function(Tibetapp,Tibetvalid,Results){
+  
+  #selections des variables (du nb de variables ?) utiliser pour le modele = mtry ?
+  grille.mtry<-data.frame(mtry=seq(1,length(Tibetapp[1,]),by=1)) #?
+  ctrl<-trainControl(method="oob")# out of bag car validation non croisée
+  sel.mtry<-caret::train(SR~.,data=Tibetapp, method="rf", trControl=ctrl, tuneGrid=grille.mtry) 
+  
+  # entrainement du model sur le jeu d'entrainement : Tibetapp
+  ForeTibet<-randomForest(SR~.,data=Tibetapp,mtry=sel.mtry$bestTune[1,1],xtest=Tibetvalid[,-21],ytest=Tibetvalid[,21],ntree=250,keep.forest=TRUE)
+  
+  # Prediction sur le jeu de validation : Tibetvalid
+  prev<-predict(ForeTibet,newdata=Tibetvalid[,1:20])
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERandomF[i]<-sqrt(mean((Tibetvalid[,21]-prev)^2))
+  
+  # Stockages des variables utilisées pour le modele
+  Results$variablesRandomF[i]<-paste(list(names(ForeTibet$importance[1:sel.mtry$bestTune[1,1],1])),sep=" ") 
+  
+  return(Results)
+}
+
+#Regression sous contraintes
+```
+
+
+```{r Lasso}
+Lasso <- function(Tibetapp, Tibetvalid, Results){
+  
+  #Regression pénalisée Lasso pour avoir une "fourchette" des lambda
+  lasso<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],family="gaussian",type.measure="mse")
+  #Regression pénalisée Lasso avec optimisation grâce à l'ensemble des lambdas sélectionnés 
+  lasso<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],family="gaussian",lambda=exp(c(lasso$lambda)))
+ # Prediction sur le jeu de validation : Tibetvalid 
+  prev.lasso<-predict(lasso,newx=as.matrix(Tibetvalid[,1:20]))
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERegLasso[i]<-sqrt(mean((Tibetvalid[,21]-prev.lasso)^2))
+  
+  
+  return(Results)
+}
+```
+
+
+```{r Ridge}
+Ridge <- function(Tibetapp, Tibetvalid, Results){
+  
+  #Regression pénalisée Ridge pour avoir une "fourchette" des lambda
+  ridge<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,family="gaussian",type.measure="mse")
+  #Regression pénalisée Ridge avec optimisation grâce à un sous-ensemble des lambdas sélectionnés les plus faibles
+  ridge<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,family="gaussian",lambda=exp(seq(from=min(ridge$lambda),to=(min(ridge$lambda)+10),   by=0.1)))
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.ridge<-predict(ridge,newx=as.matrix(Tibetvalid[,1:20]))
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERegRidge[i]<-sqrt(mean((Tibetvalid[,21]-prev.ridge)^2))
+  
+  return(Results)
+}
+```
+
+
+```{r Elast}
+Elasticnet <- function(Tibetapp, Tibetvalid, Results){
+  
+  #Regression pénalisée elasticnet pour avoir une "fourchette" des lambda
+  elasticnet<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0.5,family="gaussian",type.measure="mse")
+  #Regression pénalisée elasticnet avec optimisation grâce à l'ensemble des lambdas sélectionnés
+  elasticnet<-cv.glmnet(as.matrix(Tibetapp[,1:20]),Tibetapp[,21],alpha=0,family="gaussian",lambda=exp(elasticnet$lambda))
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.elasticnet<-predict(elasticnet,newx=as.matrix(Tibetvalid[,1:20]))
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSERegelasticnet[i]<-sqrt(mean((Tibetvalid[,21]-prev.elasticnet)^2))
+  
+  return(Results)
+}
+```
+
+
+```{r GradB}
+GradientBoosting <- function(Tibetapp, Tibetvalid, Results){
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  Gradboost<-gbm(SR~.,data=Tibetapp,distribution = 'gaussian',shrinkage=0.01,n.trees=3000) 
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.GB<-predict(Gradboost,newdata=Tibetvalid[,1:20])
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSEGB[i]<-sqrt(mean((Tibetvalid[,21]-prev.GB)^2))
+  
+  #Stockage des coefficient associer à chaque variable ?
+  
+  return(Results)
+}
+```
+
+
+```{r SVM}
+svm.regression = function(Tibetapp, Tibetvalid, Results){
+  
+  # entrainement du modele sur le jeu d'entrainement : Tibetapp
+  Modsvm = svm(SR~.,data=Tibetapp)
+  
+  # Prediction sur le jeu de validation : Tibetvalid 
+  prev.svm<-predict(Modsvm,newdata=Tibetvalid[,1:20])
+  
+  # Calcul du RMSE pour évaluer la qualité du modele
+  Results$RMSESVM[i]<-sqrt(mean((Tibetvalid[,21]-prev.svm)^2))
+  
+  return(Results)
+}
+```
+
+
+```{r ResNeu}
+ResNeu = function(Tibetapp, Tibetvalid, Results){
+
+  ResNeu <- neuralnet(SR~.,               #Modèle à ajuster
+                 data = Tibetapp,         #Jeu de données avec variables de la formule
+                 hidden = c(20,15,10,5,2),#Nombre de neurones sur la couche cachée
+                 err.fct = "sse",         #Erreur estimée par la somme des carrés des erreurs absolues que l'algorithme va                                             chercher à minimiser
+                 linear.output = FALSE,   #Application linéaire aux neuronnes de sortie
+                 lifesign = 'full',       #Imprimer ou non le détail du calcul
+                 rep = 2,                 #Nombre de répétition pour l'entraînement du réseau
+                 algorithm = "rprop+",    #retropropagation résiliente avec retour arriere de poids
+                 stepmax = 10000000)      #Etapes maximales pour la formation du reseau
+  
+  #Sélection de la répétition la plus efficace
+  if(min(n$result.matrix[1,1]<n$result.matrix[1,2])){
+    output <- compute(n, rep = 1, Tibetvalid[,-21])
+  }
+  if(min(n$result.matrix[1,2]<n$result.matrix[1,2])){
+    output <- compute(n, rep = 2, Tibetvalid[,-21])
+  }
+  Results$RMSEResNeu[i]<-sqrt(mean((Tibetvalid[,21]-output$net.result)^2))
+  
+  return(Results)
+}
+
+
+
+```
+
+# Tableau des output
+```{r}
+Results<-matrix(0,ncol=8,nrow=1000,dimnames=list(1:1000,c("RMSERandomF","RMSERegLasso","RMSERegRidge","RMSERegelasticnet","RMSEGB","RMSESVM","RMSEResNeu","BestMod")))
+Results<-as.data.frame(Results)
+
+```
+
+# Boucles pour chaque algoritme
+
+```{r Loop.ForetAlea}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+if(file.exists("RMSERandomF.txt")){
+  Resultforet = read.table("RMSERandomF.txt")
+  Results$RMSERandomF = Resultforet$x
+}else{
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    #Foret Aléatoire 
+    Results <- ForetAlea(Tibetapp,Tibetvalid,Results)
+  
+  }
+}
+stopCluster(cl)
+```
+
+```{r Loop.Lasso}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+if(file.exists("Resultreg.txt")){
+  Resultreg = read.table("Resultreg.txt")
+  Results$RMSERegLasso = Resultreg$RMSERegLasso
+  Results$RMSERegRidge = Resultreg$RMSERegRidge
+  Results$RMSERegelasticnet = Resultreg$RMSERegelasticnet
+}else{
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    # Lasso 
+    Results <- Lasso(Tibetapp,Tibetvalid,Results)
+    
+  }
+  
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    # Ridge 
+    Results <- Ridge(Tibetapp,Tibetvalid,Results)
+  
+  }
+  
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+    ##############################################################################
+    #Rajouter transformation des variables?Regression de poisson?package keras?
+    
+    # Elasticnet 
+    Results <- Elasticnet(Tibetapp,Tibetvalid,Results)
+  
+  }
+}
+stopCluster(cl)
+```
+
+
+```{r Loop.GradB}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Rajouter transformation des variables?Regression de poisson?package keras?
+  
+  #Gradient boosting 
+  Results <- GradientBoosting(Tibetapp,Tibetvalid,Results)
+}
+stopCluster(cl)
+```
+
+```{r Loop.SVM}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  
+  #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+  aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+  #Séparation en un jeu de données en un d'apprentissage et un de validation
+  Tibetapp<-Tibet[aleat,]
+  Tibetvalid<-Tibet[-aleat,]
+  ##############################################################################
+  #Support vector machine (mode regression) 
+  Results <- svm.regression(Tibetapp,Tibetvalid,Results)
+}
+stopCluster(cl)
+```
+
+```{r Loop.ResNeu}
+set.seed(100010)
+
+cl <- detectCores() %>% -1 %>% makeCluster
+registerDoParallel(cl)
+if(file.exists("ResNeuSeco.txt")){
+  Resultforet = read.table("ResNeuSeco.txt")
+  Results$RMSEResNeu = ResNeu$x
+}else{
+  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+    
+    #Sélection du jeu de données-Validation non croisée de Monte-Carlo
+    aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
+    #Séparation en un jeu de données en un d'apprentissage et un de validation
+    Tibetapp<-Tibet[aleat,]
+    Tibetvalid<-Tibet[-aleat,]
+
+    #Réseau de neurones
+    Results <- ResNeu(Tibetapp,Tibetvalid,Results)
+  }
+}
+stopCluster(cl)
+```
+
+
+```{r RMSE}
+Rsq <- function(RMSE){
+  SSE <- length(Tibetvalid[,21])*RMSE^2
+  SST = sum((Tibetvalid[,21]-mean(Tibetvalid[,21]))^2)
+  Rsq = 1 - SSE/SST
+  return(Rsq)
+}
+```
+
+
+# Resultats
+
+```{r RMSE.plot}
+Results_long = Results%>%
+  select(starts_with("RMSE"))%>%
+  pivot_longer(everything())
+
+Results_long$name = as.factor(Results_long$name)
+levels(Results_long$name) = c("Grad.boost" ,"Random.F", "Elsast", "Lasso", "Ridge", "ResNeu", "SVM")
+recap = Results_long%>%
+  group_by(name)%>%
+  summarise(mean.rmse = mean(value),
+            sd.rmse = sd(value))
+ggplot()+
+  geom_sina(data=Results_long, aes(name, value), alpha = 0.2,shape=19, cex = 2,
+            method = "density")+
+  geom_point(data = recap, aes(name, mean.rmse), cex =2, col = "orange")+
+  geom_errorbar(data = recap, 
+                aes(x= name, ymin=mean.rmse-sd.rmse, ymax=mean.rmse+sd.rmse),
+                cex =1.2, width=.1, position = position_dodge(0.5), col = "orange")+
+  labs(y= "Erreur moyenne",x ="Modèles")+
+  theme_bw()+
+  theme(line = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        panel.border = element_blank(),
+        axis.ticks =  element_line(colour = "black"),
+        axis.text.x = element_text(colour = "black", size=20),
+        axis.text.y = element_text(colour = "black", size=20),
+        legend.title = element_text(colour = "black", size=20),
+        legend.title.align=0.5,
+        legend.text = element_text(colour = "black", size=18),
+        axis.title=element_text(size=28),
+        strip.background = element_rect(fill="white"))
+
+```
+
+# Annexe
+
+Justification du choix de travailler avec une loi normale et non une loi de poisson
+
+```{r}
+# Génération des valeurs pour la distribution de Poisson
+lambda = mean(Tibet$SR)
+x <- 0:30  
+poisson_values <- dpois(x, lambda) 
+
+# Génération des valeurs pour la distribution normale
+norm_values <- dnorm(x,mean(Tibet$SR),sd(Tibet$SR))
+
+# Création du graphique
+par(mfrow = c(1,3))
+
+plot(x, poisson_values, type = "h", lwd = 2, col = "blue",
+     xlab = "Richesse specifique", ylab = "Probabilité",
+     main = "Distribution de la loi de Poisson")
+
+plot(x, norm_values, type = "h", lwd = 2, col = "blue",
+     xlab = "Richesse specifique", ylab = "Probabilité",
+     main = "Distribution de la loi normale")
+
+hist(Tibet$SR,xlab = "Richesse specifique",main = "Distribution des données")
+```
+
+QQ plot des données de richesse spécifique
+
+```{r}
+qqnorm(Tibet$SR, pch= 16, col = 'blue',xlab='')
+qqline(Tibet$SR, col= 'red')
+```
+
+
