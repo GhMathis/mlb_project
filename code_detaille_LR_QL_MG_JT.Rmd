@@ -36,6 +36,8 @@ names(Tibet) = c("ID","A_Temp","Sp_temp","Su_temp","W_temp","A_prec","Sp_prec",
                  "Su_prec","W_prec","A_rad","Sp_rad","Su_rad","W_rad","Silt",
                  "Sand","Clay","Aspect","DEM","Slope","pH","SOM","SR")
 Tibet<-Tibet[,-1]
+
+n_sim  =1000 # nombre de simulation
 ```
 
 # Création des fonction de chaque modèle
@@ -170,7 +172,7 @@ svm.regression = function(Tibetapp, Tibetvalid, Results){
 
 ```{r ResNeu}
 
-ResNeu = function(Tibetapp, Tibetvalid, Results){
+Res.Neu = function(Tibetapp, Tibetvalid, Results){
 
   ResNeu <- neuralnet(SR~.,               #Modèle à ajuster
                  data = Tibetapp,         #Jeu de données avec variables de la formule
@@ -183,11 +185,11 @@ ResNeu = function(Tibetapp, Tibetvalid, Results){
                  stepmax = 10000000)      #Etapes maximales pour la formation du reseau
   
   #Sélection de la répétition la plus efficace
-  if(min(n$result.matrix[1,1]<n$result.matrix[1,2])){
-    output <- compute(n, rep = 1, Tibetvalid[,-21])
+  if(min(ResNeu$result.matrix[1,1]<ResNeu$result.matrix[1,2])){
+    output <- compute(ResNeu, rep = 1, Tibetvalid[,-21])
   }
-  if(min(n$result.matrix[1,2]<n$result.matrix[1,2])){
-    output <- compute(n, rep = 2, Tibetvalid[,-21])
+  if(min(ResNeu$result.matrix[1,2]<ResNeu$result.matrix[1,2])){
+    output <- compute(ResNeu, rep = 2, Tibetvalid[,-21])
   }
   Results$RMSEResNeu[i]<-sqrt(mean((Tibetvalid[,21]-output$net.result)^2))
   
@@ -212,7 +214,7 @@ set.seed(100010)
 
 cl <- detectCores() %>% -1 %>% makeCluster
 registerDoParallel(cl)
-for (i in 1:1000){
+for (i in 1:n_sim){
   aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
   #Séparation en un jeu de données en un d'apprentissage et un de validation
   Tibetapp<-Tibet[aleat,]
@@ -220,6 +222,7 @@ for (i in 1:1000){
   
   Results <- GLM(Tibetapp,Tibetvalid,Results)
 }
+
 
 stopCluster(cl)
 ```
@@ -234,7 +237,7 @@ if(file.exists("RMSERandomF.txt")){
   Resultforet = read.table("RMSERandomF.txt")
   Results$RMSERandomF = Resultforet$x
 }else{
-  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
     
     #Sélection du jeu de données-Validation non croisée de Monte-Carlo
     aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -263,7 +266,7 @@ if(file.exists("Resultreg.txt")){
   Results$RMSERegRidge = Resultreg$RMSERegRidge
   Results$RMSERegelasticnet = Resultreg$RMSERegelasticnet
 }else{
-  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
     
     #Sélection du jeu de données-Validation non croisée de Monte-Carlo
     aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -278,7 +281,7 @@ if(file.exists("Resultreg.txt")){
     
   }
   
-  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
     
     #Sélection du jeu de données-Validation non croisée de Monte-Carlo
     aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -293,7 +296,7 @@ if(file.exists("Resultreg.txt")){
   
   }
   
-  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
     
     #Sélection du jeu de données-Validation non croisée de Monte-Carlo
     aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -322,7 +325,7 @@ if(file.exists("RMSEgrad_bosst.txt")){
   Results$RMSEGB = Resultreg$RMSEGB
   
 }else{
-  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+  for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
     
     #Sélection du jeu de données-Validation non croisée de Monte-Carlo
     aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -344,7 +347,7 @@ set.seed(100010)
 
 cl <- detectCores() %>% -1 %>% makeCluster
 registerDoParallel(cl)
-for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
   
   #Sélection du jeu de données-Validation non croisée de Monte-Carlo
   aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -369,7 +372,8 @@ if(file.exists("ResNeuSeco.txt")){
   Resultreg = read.table("ResNeuSeco.txt")
   Results$RMSEResNeu = Resultreg$x
 }else{
-  for (i in 1:1000){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
+
+  for (i in 1:n_sim){ # Faire des boucles séparées pour chaque methode en vérifant avant le temps que ça prend pour tourner une seule fois 
     
     #Sélection du jeu de données-Validation non croisée de Monte-Carlo
     aleat<-sample(length(Tibet$A_Temp),250) #explication du 250 à faire
@@ -380,21 +384,11 @@ if(file.exists("ResNeuSeco.txt")){
     #Rajouter transformation des variables?Regression de poisson?package keras?
     
     #Gradient boosting 
-    Results <- ResNeu(Tibetapp,Tibetvalid,Results)
+    Results <- Res.Neu(Tibetapp,Tibetvalid,Results)
   }
 }
 stopCluster(cl)
 ```
-
-```{r RMSE}
-Rsq <- function(RMSE){
-  SSE <- length(Tibetvalid[,21])*RMSE^2
-  SST = sum((Tibetvalid[,21]-mean(Tibetvalid[,21]))^2)
-  Rsq = 1 - SSE/SST
-  return(Rsq)
-}
-```
-
 
 # Resultats
 
@@ -439,6 +433,7 @@ Justification du choix de travailler avec une loi normale et non une loi de pois
 
 ```{r}
 # Génération des valeurs pour la distribution de Poisson
+
 lambda = mean(Tibet$SR)
 x <- 0:30  
 poisson_values <- dpois(x, lambda) 
@@ -463,6 +458,7 @@ hist(Tibet$SR,xlab = "Richesse specifique",main = "Distribution des données")
 QQ plot des données de richesse spécifique
 
 ```{r}
+par(mfrow = c(1,1))
 qqnorm(Tibet$SR, pch= 16, col = 'blue',xlab='')
 qqline(Tibet$SR, col= 'red')
 ```
