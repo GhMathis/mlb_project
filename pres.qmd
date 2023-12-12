@@ -14,14 +14,25 @@ When you click the **Render** button a document will be generated that includes 
 
 ```{r}
 data<-read.table("data.txt",header=TRUE,sep="\t",dec = ",")
-summary(data)
-```
 
-You can add options to executable code like this
+summary(data)
+
+
+library(ggpubr)
+library(GGally)
+library(corrplot)
+source("functions.R")
+
+
+
+```
 
 ```{r}
-#| echo: false
-2 * 2
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+!! Ne pas oublier que le RMSE suppose la normalité des erreurs --\> faire représentations graph distributions pour adapter la méthode de sélection des modèles ?
+
+```{r}
+
+```
